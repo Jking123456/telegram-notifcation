@@ -81,6 +81,7 @@
       overflow-y: auto;
       border-radius: 8px;
       font-size: 13px;
+      white-space: pre-line;
     }
     .copy-btn {
       margin-top: 10px;
@@ -129,16 +130,17 @@
 
     function log(msg, isKey = false) {
       if (isKey) {
-        lastKey = msg;
+        lastKey = msg.split("\n")[1]?.trim(); // store only the raw key
       }
       logBox.textContent += msg + "\n";
       logBox.scrollTop = logBox.scrollHeight;
     }
 
+    // API endpoints through CORS proxy
     const apiMap = {
-      cimod: "https://all-in-one-keygen-h7c5hzhym-blatz-bobos-projects.vercel.app/api/genkey",
-      aamodz: "https://aa-pro-launcher-keygen.vercel.app/api/genkey",
-      aadirect: "https://cimod-keygen-api.vercel.app/api/genkey"
+      cimod: "https://corsproxy.io/?url=" + encodeURIComponent("https://all-in-one-keygen-h7c5hzhym-blatz-bobos-projects.vercel.app/api/genkey"),
+      aamodz: "https://corsproxy.io/?url=" + encodeURIComponent("https://aa-pro-launcher-keygen.vercel.app/api/genkey"),
+      aadirect: "https://corsproxy.io/?url=" + encodeURIComponent("https://cimod-keygen-api.vercel.app/api/genkey")
     };
 
     document.querySelectorAll(".generateBtn").forEach(btn => {
@@ -146,7 +148,7 @@
         e.preventDefault();
         const selectedGame = document.getElementById("gameSelect").value;
         const type = btn.dataset.type;
-        const url = apiMap[type] + "?game=" + selectedGame;
+        const url = apiMap[type] + encodeURIComponent("?game=" + selectedGame);
 
         logBox.textContent = ""; // clear console each time
         log("🎯 Requesting key from " + type.toUpperCase() + "...");
@@ -154,7 +156,10 @@
         try {
           const resp = await fetch(url);
           const key = await resp.text();
-          log("🔑 Key : Your Key\n" + key, true);
+          const cleanKey = key.trim();
+
+          // Unified format
+          log("🔑 Key : Your Key\n" + cleanKey, true);
         } catch (err) {
           log("⚠️ Error: " + err, false);
         }
@@ -167,7 +172,7 @@
         return;
       }
       navigator.clipboard.writeText(lastKey).then(() => {
-        alert("✅ Key copied to clipboard!");
+        alert("✅ Key copied: " + lastKey);
       });
     });
   </script>
