@@ -1,8 +1,10 @@
 const axios = require('axios');
 
 module.exports = async (req, res) => {
+  // CRITICAL: Double-check these two values from your cron-job.org settings
   const API_KEY = 'asVdr6fswV9XT+aZXFPOWM0e5NpgDCvW2QK8n3F1NB4='; 
   const JOB_ID = '7076160';
+  
   const headers = { 'Authorization': `Bearer ${API_KEY}` };
 
   if (req.method === 'POST') {
@@ -11,23 +13,25 @@ module.exports = async (req, res) => {
       await axios.patch(`https://api.cron-job.org/jobs/${JOB_ID}`, { enabled }, { headers });
       return res.status(200).json({ success: true });
     } catch (e) {
-      return res.status(500).json({ error: "Failed to toggle" });
+      return res.status(500).json({ error: "Toggle Failed" });
     }
   }
 
   try {
-    // Try to get both status and history at once
-    const [jobRes, histRes] = await Promise.all([
-      axios.get(`https://api.cron-job.org/jobs/${JOB_ID}`, { headers }),
-      axios.get(`https://api.cron-job.org/jobs/${JOB_ID}/history`, { headers })
-    ]);
+    // We fetch the job status and history separately for better error tracking
+    const jobDetail = await axios.get(`https://api.cron-job.org/jobs/${JOB_ID}`, { headers });
+    const jobHistory = await axios.get(`https://api.cron-job.org/jobs/${JOB_ID}/history`, { headers });
 
     res.status(200).json({
-      enabled: jobRes.data.job.enabled,
-      history: histRes.data.history || []
+      enabled: jobDetail.data.job.enabled,
+      history: jobHistory.data.history || []
     });
   } catch (error) {
-    // This sends a clearer error if the API key is wrong
-    res.status(500).json({ error: "API Key or Job ID invalid", history: [] });
+    // If this triggers, the API Key or Job ID is definitely wrong
+    res.status(401).json({ 
+      error: "API Key or Job ID invalid", 
+      details: error.response ? error.response.data : "No response from cron-job.org",
+      history: [] 
+    });
   }
 };
