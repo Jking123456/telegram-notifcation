@@ -2,7 +2,7 @@ const axios = require('axios');
 
 module.exports = async (req, res) => {
   const API_KEY = 'asVdr6fswV9XT+aZXFPOWM0e5NpgDCvW2QK8n3F1NB4=';
-  const JOB_ID = 'PASTE_YOUR_JOB_ID_HERE';
+  const JOB_ID = '7076160';
 
   try {
     const response = await axios.get(`https://api.cron-job.org/jobs/${JOB_ID}/history`, {
