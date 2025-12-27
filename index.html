@@ -7,33 +7,35 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #0b0e11; color: #e9ecef; padding: 15px; display: flex; justify-content: center; }
         .card { background: #15191c; border-radius: 16px; padding: 24px; width: 100%; max-width: 400px; border: 1px solid #2b2f32; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h1 { font-size: 1.4rem; text-align: center; color: #00d4ff; margin-bottom: 20px; }
+        h1 { font-size: 1.4rem; text-align: center; color: #00d4ff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
         .switch-container { display: flex; justify-content: space-between; align-items: center; background: #1c2126; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2b2f32; }
         .switch { position: relative; width: 50px; height: 26px; display: inline-block; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #333; transition: .4s; border-radius: 34px; }
         .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background: #007bff; }
+        input:checked + .slider { background: #00d4ff; }
         input:checked + .slider:before { transform: translateX(24px); }
-        .btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #007bff; color: #007bff; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
-        .log-item { border-bottom: 1px solid #2b2f32; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
-        .status-ok { color: #4caf50; background: rgba(76, 175, 80, 0.1); padding: 4px 8px; border-radius: 6px; }
-        .status-err { color: #f44336; background: rgba(244, 67, 54, 0.1); padding: 4px 8px; border-radius: 6px; }
+        .btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #00d4ff; color: #00d4ff; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
+        .btn:active { background: rgba(0, 212, 255, 0.1); }
+        .log-item { border-bottom: 1px solid #2b2f32; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
+        .status-ok { color: #4caf50; font-weight: bold; }
+        .status-err { color: #f44336; font-weight: bold; }
         .time { color: #9ba3af; font-family: monospace; }
+        #logs { max-height: 350px; overflow-y: auto; scrollbar-width: thin; }
     </style>
 </head>
 <body>
 <div class="card">
-    <h1>🚀 Boost Control</h1>
+    <h1>🚀 Boost Status</h1>
     <div class="switch-container">
-        <span>Automation Status</span>
+        <span>Automation</span>
         <label class="switch">
             <input type="checkbox" id="boostToggle" onchange="toggleAutomation(this.checked)">
             <span class="slider"></span>
         </label>
     </div>
-    <button class="btn" onclick="loadData()">🔄 Refresh History</button>
-    <div id="logs">Connecting to Vercel...</div>
+    <button class="btn" onclick="loadData()">🔄 REFRESH LOGS</button>
+    <div id="logs">Connecting to System...</div>
 </div>
 
 <script>
@@ -49,7 +51,7 @@
             });
             if (!res.ok) throw new Error();
         } catch (e) {
-            alert("Failed to update. Check API Key in backend.");
+            alert("Error: Status could not be updated.");
             toggle.checked = !isOn;
         }
     }
@@ -59,32 +61,38 @@
             const res = await fetch('/api/history');
             const data = await res.json();
             
-            if (data.error) {
-                logDiv.innerHTML = `<center style="color:#f44336">${data.error}</center>`;
-                return;
-            }
-
+            // Sync Toggle
             toggle.checked = data.enabled;
 
             if (!data.history || data.history.length === 0) {
-                logDiv.innerHTML = "<center style='color:#888'>No logs found yet.</center>";
+                logDiv.innerHTML = "<center style='color:#888; padding:20px;'>No history found.</center>";
                 return;
             }
 
-            logDiv.innerHTML = data.history.slice(0, 10).map(log => {
-                const isOk = log.status === 200; //
-                const time = new Date(log.executedAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); //
+            // Map and display logs
+            logDiv.innerHTML = data.history.slice(0, 15).map(log => {
+                const isOk = log.status === 1 || log.httpStatus === 200; 
+                const date = new Date(log.date * 1000);
+                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
                 return `
                     <div class="log-item">
-                        <span class="time">${time}</span>
-                        <span class="${isOk ? 'status-ok' : 'status-err'}">${isOk ? '● SUCCESS' : '● FAILED'}</span>
+                        <span class="time">${timeStr}</span>
+                        <span class="${isOk ? 'status-ok' : 'status-err'}">
+                            ${isOk ? '✓ SUCCESS' : '✕ FAILED'}
+                        </span>
                     </div>`;
             }).join('');
         } catch (e) {
-            logDiv.innerHTML = "<center style='color:#f44336'>⚠️ System Offline</center>";
+            logDiv.innerHTML = "<center style='color:#f44336; padding:20px;'>⚠️ Connection Offline</center>";
         }
     }
+
+    // Initial load
     loadData();
+
+    // Auto-refresh every 60 seconds
+    setInterval(loadData, 60000);
 </script>
 </body>
 </html>
