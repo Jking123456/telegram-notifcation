@@ -7,18 +7,19 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #0b0e11; color: #e9ecef; padding: 15px; display: flex; justify-content: center; }
         .card { background: #15191c; border-radius: 16px; padding: 24px; width: 100%; max-width: 400px; border: 1px solid #2b2f32; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .app-title { font-size: 0.9rem; text-align: center; color: #888; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        .app-title { font-size: 0.8rem; text-align: center; color: #888; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
         h1 { font-size: 1.4rem; text-align: center; color: #00d4ff; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; }
-        .last-success-box { background: #1c2126; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2b2f32; text-align: center; }
+        .last-success-box { background: #1c2126; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #2b2f32; text-align: center; }
         .last-time { font-size: 1.2rem; font-weight: bold; color: #4caf50; display: block; margin-top: 5px; }
-        .btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #00d4ff; color: #00d4ff; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
-        .btn:active { background: rgba(0, 212, 255, 0.1); }
+        .timer-info { font-size: 0.75rem; color: #9ba3af; text-align: center; margin-bottom: 20px; }
+        .btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #00d4ff; color: #00d4ff; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 15px; transition: 0.3s; }
+        .btn:disabled { border-color: #444; color: #444; cursor: not-allowed; }
         .log-item { border-bottom: 1px solid #2b2f32; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; }
         .status-ok { color: #4caf50; font-weight: bold; }
         .status-err { color: #f44336; font-weight: bold; }
         .time { color: #9ba3af; font-family: monospace; }
-        #logs { max-height: 350px; overflow-y: auto; scrollbar-width: thin; }
-        .error-msg { color: #ff9800; font-size: 0.8rem; margin-top: 10px; text-align: center; display: none; }
+        #logs { max-height: 300px; overflow-y: auto; scrollbar-width: thin; }
+        .rate-limit-warn { color: #ff9800; font-size: 0.8rem; text-align: center; padding: 10px; display: none; background: rgba(255, 152, 0, 0.1); border-radius: 8px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -28,69 +29,86 @@
     
     <div class="last-success-box">
         <span style="font-size: 0.8rem; color: #9ba3af;">Last Successful Boost:</span>
-        <span id="lastSuccessTime" class="last-time">Checking Logs...</span>
+        <span id="lastSuccessTime" class="last-time">-- : --</span>
     </div>
 
-    <button class="btn" onclick="loadData()">🔄 REFRESH LOGS</button>
+    <div class="timer-info">
+        Next Auto-Sync in: <span id="countdown">300</span>s | 
+        Checked: <span id="lastChecked">Never</span>
+    </div>
+
+    <button id="refreshBtn" class="btn" onclick="manualRefresh()">🔄 REFRESH LOGS</button>
     <div id="logs">Connecting to System...</div>
-    <div id="errorMessage" class="error-msg">⚠️ Rate limit reached. Waiting to retry...</div>
+    <div id="rateLimitWarn" class="rate-limit-warn">⚠️ Rate Limit active. Please wait 15 mins.</div>
 </div>
 
 <script>
+    let timeLeft = 300;
     const logDiv = document.getElementById('logs');
     const lastSuccessText = document.getElementById('lastSuccessTime');
-    const errorMsg = document.getElementById('errorMessage');
+    const countdownText = document.getElementById('countdown');
+    const lastCheckedText = document.getElementById('lastChecked');
+    const rateLimitWarn = document.getElementById('rateLimitWarn');
+    const refreshBtn = document.getElementById('refreshBtn');
 
     async function loadData() {
         try {
             const res = await fetch('/api/history');
             const data = await res.json();
             
-            // Handle Rate Limit (Status 429)
+            lastCheckedText.innerText = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
             if (res.status === 429) {
-                errorMsg.style.display = 'block';
+                rateLimitWarn.style.display = 'block';
+                logDiv.innerHTML = "<center style='color:#888; padding:20px;'>System Cooling Down...</center>";
                 return;
             }
-            errorMsg.style.display = 'none';
+            rateLimitWarn.style.display = 'none';
 
             if (!data.history || data.history.length === 0) {
                 logDiv.innerHTML = "<center style='color:#888; padding:20px;'>No history found.</center>";
-                lastSuccessText.innerText = "No data";
                 return;
             }
 
-            // Find the most recent success
             const lastSuccess = data.history.find(log => log.status === 1 || log.httpStatus === 200);
             if (lastSuccess) {
                 const date = new Date(lastSuccess.date * 1000);
                 lastSuccessText.innerText = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            } else {
-                lastSuccessText.innerText = "None recently";
             }
 
-            // Display logs
             logDiv.innerHTML = data.history.slice(0, 15).map(log => {
                 const isOk = log.status === 1 || log.httpStatus === 200; 
                 const logDate = new Date(log.date * 1000);
-                const timeStr = logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                
                 return `
                     <div class="log-item">
-                        <span class="time">${timeStr}</span>
-                        <span class="${isOk ? 'status-ok' : 'status-err'}">
-                            ${isOk ? '✓ SUCCESS' : '✕ FAILED'}
-                        </span>
+                        <span class="time">${logDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span class="${isOk ? 'status-ok' : 'status-err'}">${isOk ? '✓ SUCCESS' : '✕ FAILED'}</span>
                     </div>`;
             }).join('');
+            
+            timeLeft = 300; // Reset timer on successful load
         } catch (e) {
             logDiv.innerHTML = "<center style='color:#f44336; padding:20px;'>⚠️ Connection Offline</center>";
         }
     }
 
-    loadData();
+    function manualRefresh() {
+        refreshBtn.disabled = true;
+        loadData();
+        setTimeout(() => refreshBtn.disabled = false, 10000); // 10s cooldown on button
+    }
 
-    // Auto-refresh every 5 minutes to avoid "Status 429" errors
-    setInterval(loadData, 300000);
+    // Timer logic
+    setInterval(() => {
+        if (timeLeft > 0) {
+            timeLeft--;
+            countdownText.innerText = timeLeft;
+        } else {
+            loadData();
+        }
+    }, 1000);
+
+    loadData();
 </script>
 </body>
 </html>
