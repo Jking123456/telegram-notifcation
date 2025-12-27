@@ -6,26 +6,35 @@ module.exports = async (req, res) => {
   
   const headers = { 
     'Authorization': `Bearer ${API_KEY.trim()}`,
-    'Accept': 'application/json'
+    'Content-Type': 'application/json'
   };
 
+  // 1. HANDLE TOGGLE (POST REQUEST)
+  if (req.method === 'POST') {
+    try {
+      const { enabled } = req.body;
+      await axios.patch(`https://api.cron-job.org/jobs/${JOB_ID}`, { enabled }, { headers });
+      return res.status(200).json({ success: true });
+    } catch (e) {
+      return res.status(500).json({ error: "Failed to toggle status" });
+    }
+  }
+
+  // 2. HANDLE DATA FETCH (GET REQUEST)
   try {
-    // We only try to get history for this test to keep it simple
-    const response = await axios.get(`https://api.cron-job.org/jobs/${JOB_ID}/history`, { 
-      headers,
-      timeout: 5000 // If no response in 5 seconds, stop trying
-    });
+    const [jobRes, histRes] = await Promise.all([
+      axios.get(`https://api.cron-job.org/jobs/${JOB_ID}`, { headers }),
+      axios.get(`https://api.cron-job.org/jobs/${JOB_ID}/history`, { headers })
+    ]);
 
     res.status(200).json({
-      enabled: true, // Placeholder until we confirm connection works
-      history: response.data.history || []
+      enabled: jobRes.data.job.enabled,
+      history: histRes.data.history || []
     });
-
   } catch (error) {
     res.status(500).json({ 
-      debug_error: "CONNECTION_FAILED",
-      message: error.message,
-      code: error.code // This will tell us if it's a TIMEOUT or DNS error
+      error: "API Connection Error",
+      details: error.message 
     });
   }
 };
