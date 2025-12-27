@@ -3,86 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Boost Control Panel</title>
+    <title>Boost Control</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #0b0e11; color: #e9ecef; padding: 15px; display: flex; justify-content: center; }
-        .card { background: #15191c; border-radius: 16px; padding: 24px; width: 100%; max-width: 450px; border: 1px solid #2b2f32; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        h1 { font-size: 1.4rem; text-align: center; color: #00d4ff; margin-bottom: 20px; }
-        .switch-container { display: flex; justify-content: space-between; align-items: center; background: #1c2126; padding: 15px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #2b2f32; }
-        .switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .card { background: #15191c; border-radius: 16px; padding: 24px; width: 100%; max-width: 400px; border: 1px solid #2b2f32; }
+        .switch-container { display: flex; justify-content: space-between; align-items: center; background: #1c2126; padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        .switch { position: relative; width: 50px; height: 26px; }
         .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #007bff; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #333; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 4px; bottom: 4px; background: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background: #007bff; }
         input:checked + .slider:before { transform: translateX(24px); }
-        .refresh-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #007bff; color: #007bff; border-radius: 10px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
-        .log-item { border-bottom: 1px solid #2b2f32; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; }
-        .status-success { color: #4caf50; background: rgba(76, 175, 80, 0.1); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; }
-        .status-failed { color: #f44336; background: rgba(244, 67, 54, 0.1); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; }
-        .time { color: #9ba3af; font-size: 0.85rem; font-family: monospace; }
+        .btn { width: 100%; padding: 12px; background: #007bff; border: none; color: white; border-radius: 8px; font-weight: bold; margin-bottom: 20px; }
+        .log-item { border-bottom: 1px solid #2b2f32; padding: 10px 0; display: flex; justify-content: space-between; font-size: 0.85rem; }
+        .status-ok { color: #4caf50; }
+        .status-err { color: #f44336; }
     </style>
 </head>
 <body>
 <div class="card">
-    <h1>🚀 Boost Control</h1>
+    <h2 style="text-align:center;">🚀 Boost Control</h2>
     <div class="switch-container">
-        <span><b>Automation Status</b></span>
+        <span>Automation Status</span>
         <label class="switch">
             <input type="checkbox" id="boostToggle" onchange="toggleAutomation(this.checked)">
             <span class="slider"></span>
         </label>
     </div>
-    <button class="refresh-btn" onclick="loadData()">🔄 Refresh History</button>
-    <div id="logs">Loading Status...</div>
+    <button class="btn" onclick="loadData()">🔄 Refresh History</button>
+    <div id="logs">Loading...</div>
 </div>
 
 <script>
-    const toggle = document.getElementById('boostToggle');
-    const logDiv = document.getElementById('logs');
-
-    async function toggleAutomation(isEnabled) {
-        try {
-            const res = await fetch('/api/history', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: isEnabled })
-            });
-            if (!res.ok) throw new Error();
-        } catch (e) {
-            alert("Failed to update status. Check your API Key.");
-            toggle.checked = !isEnabled;
-        }
+    async function toggleAutomation(isOn) {
+        await fetch('/api/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: isOn })
+        }).catch(() => alert("Error toggling status"));
     }
 
     async function loadData() {
-        try {
-            const res = await fetch('/api/history');
-            const data = await res.json();
-            
-            // Sync toggle with server
-            toggle.checked = data.enabled;
-
-            if (!data.history || data.history.length === 0) {
-                logDiv.innerHTML = "<center>No logs found.</center>";
-                return;
-            }
-
-            logDiv.innerHTML = data.history.slice(0, 10).map(log => {
-                const isSuccess = log.status === 200;
-                // FIX: Use * 1000 for correct time
-                const time = new Date(log.executedAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                return `
-                    <div class="log-item">
-                        <span class="time">${time}</span>
-                        <span class="${isSuccess ? 'status-success' : 'status-failed'}">
-                            ${isSuccess ? '● SUCCESS' : '● FAILED (' + (log.httpStatus || 'Timeout') + ')'}
-                        </span>
-                    </div>
-                `;
-            }).join('');
-        } catch (e) {
-            logDiv.innerHTML = "<center style='color:#f44336'>⚠️ Connection Error</center>";
-        }
+        const res = await fetch('/api/history');
+        const data = await res.json();
+        document.getElementById('boostToggle').checked = data.enabled;
+        document.getElementById('logs').innerHTML = data.history.slice(0, 10).map(log => {
+            const isOk = log.status === 200;
+            const time = new Date(log.executedAt * 1000).toLocaleTimeString();
+            return `
+                <div class="log-item">
+                    <span>${time}</span>
+                    <span class="${isOk ? 'status-ok' : 'status-err'}">${isOk ? 'SUCCESS' : 'FAILED'}</span>
+                </div>`;
+        }).join('');
     }
     loadData();
 </script>
